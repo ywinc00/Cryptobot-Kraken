@@ -485,7 +485,7 @@ function save(){
   try{
     ['cap','peak','totalPnl','dailyPnl','wins','losses'].forEach(k=>localStorage.setItem('kb_'+k,S[k]));
     localStorage.setItem('kb_history',  JSON.stringify(S.history.slice(-50)));
-    localStorage.setItem('kb_convHist', JSON.stringify(S.convHist.slice(-40)));
+    localStorage.setItem('kb_convHist', JSON.stringify(S.convHist.slice(-10)));
     const sel=ALL_PAIRS.map(p=>PAIRS[p.sym].selected);
     localStorage.setItem('kb_selected', JSON.stringify(sel));
     if(S.pos) localStorage.setItem('kb_pos',JSON.stringify(S.pos));
@@ -635,10 +635,10 @@ Responde SOLO JSON válido sin markdown:
 Reglas: BUY/SELL solo si confidence>=65 y >=3 indicadores alineados.`;
 
 function memCtx(){
-  const h=S.history.slice(-10);if(!h.length)return 'Sin historial.';
+  const h=S.history.slice(-5);if(!h.length)return 'Sin historial.';
   const ws=h.filter(t=>t.result==='WIN');
   return `Historial (${h.length} trades): WR ${h.length?(ws.length/h.length*100).toFixed(0):0}%\n`+
-    h.slice(-5).map(t=>`  ${t.result==='WIN'?'✓':'✗'} ${t.sym} ${t.dir} $${t.pnl.toFixed(2)} [${t.reason}]`).join('\n');
+    h.slice(-3).map(t=>`  ${t.result==='WIN'?'✓':'✗'} ${t.sym} ${t.dir} $${t.pnl.toFixed(2)} [${t.reason}]`).join('\n');
 }
 
 function buildPrompt(sym,conf){
@@ -657,10 +657,10 @@ async function callClaude(sym,conf){
   if(!S.claudeKey) return null;
   const prompt=buildPrompt(sym,conf);
   S.convHist.push({role:'user',content:prompt});
-  if(S.convHist.length>40) S.convHist=S.convHist.slice(-40);
+  if(S.convHist.length>10) S.convHist=S.convHist.slice(-10);
   S.aiCalls++;
   try{
-    const r=await fetchWT('/api/claude',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':S.claudeKey},body:JSON.stringify({system:SYS,messages:S.convHist,model:'claude-sonnet-4-6',max_tokens:512})},30000);
+    const r=await fetchWT('/api/claude',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':S.claudeKey},body:JSON.stringify({system:SYS,messages:S.convHist,model:'claude-sonnet-4-6',max_tokens:1024})},30000);
     const d=await r.json();
     if(!r.ok) throw new Error(d.error?.message||'API error');
     let raw=d.content?.map(b=>b.type==='text'?b.text:'').join('').trim()||'';
