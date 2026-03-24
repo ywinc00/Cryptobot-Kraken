@@ -660,7 +660,7 @@ async function callClaude(sym,conf){
   if(S.convHist.length>40) S.convHist=S.convHist.slice(-40);
   S.aiCalls++;
   try{
-    const r=await fetchWT('/api/claude',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':S.claudeKey},body:JSON.stringify({system:SYS,messages:S.convHist,model:'claude-sonnet-4-6',max_tokens:512})});
+    const r=await fetchWT('/api/claude',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':S.claudeKey},body:JSON.stringify({system:SYS,messages:S.convHist,model:'claude-sonnet-4-6',max_tokens:512})},30000);
     const d=await r.json();
     if(!r.ok) throw new Error(d.error?.message||'API error');
     let raw=d.content?.map(b=>b.type==='text'?b.text:'').join('').trim()||'';
@@ -677,7 +677,7 @@ async function callClaude(sym,conf){
 // ═══════════════════════════════════════════════
 // KRAKEN DATA
 // ═══════════════════════════════════════════════
-async function fetchWT(url,opts={},ms=8000){
+async function fetchWT(url,opts={},ms=10000){
   const ctrl=new AbortController();
   const id=setTimeout(()=>ctrl.abort(),ms);
   try{const r=await fetch(url,{...opts,signal:ctrl.signal});clearTimeout(id);return r;}
@@ -705,15 +705,20 @@ async function getAllPrices(){
 }
 
 async function getCandles(sym,tf,limit){
-  const res=tf+'m';
   const from=Math.floor(Date.now()/1000)-tf*60*limit;
-  const path=encodeURIComponent('trade/'+sym+'/'+res+'?from='+from);
+  const path=encodeURIComponent('charts/'+sym+'/'+tf+'?from='+from);
   try{
-    const r=await fetchWT('/api/kraken?type=charts&path='+path);
+    const r=await fetchWT('/api/kraken?type=v3&path='+path,{},12000);
     const d=await r.json();
-    if(!d.candles||!d.candles.length) return [];
-    return d.candles.map(c=>({t:+c.time,o:parseFloat(c.open),h:parseFloat(c.high),l:parseFloat(c.low),c:parseFloat(c.close),v:parseFloat(c.volume||0)}));
-  }catch(e){return [];}
+    if(!d.candles||!d.candles.length){
+      addLog('Sin velas '+sym+' tf:'+tf+' resp:'+JSON.stringify(d).slice(0,80),'W');
+      return [];
+    }
+    return d.candles.map(c=>{
+      if(Array.isArray(c)) return {t:+c[0],o:parseFloat(c[1]),h:parseFloat(c[2]),l:parseFloat(c[3]),c:parseFloat(c[4]),v:parseFloat(c[5]||0)};
+      return {t:+c.time,o:parseFloat(c.open),h:parseFloat(c.high),l:parseFloat(c.low),c:parseFloat(c.close),v:parseFloat(c.volume||0)};
+    });
+  }catch(e){addLog('Error velas '+sym+': '+e.message,'E');return [];}
 }
 
 // ═══════════════════════════════════════════════
