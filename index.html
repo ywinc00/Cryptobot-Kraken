@@ -666,24 +666,31 @@ async function callClaude(prompt){
 // ═══════════════════════════════════════════
 // KRAKEN DATA FEED
 // ═══════════════════════════════════════════
-async function fetchKraken(path){
-  const r=await fetch(`/api/kraken?path=${encodeURIComponent(path)}`);
-  return r.json();
-}
-
 async function getCandles(sym,tf,limit){
   try{
     const from=Math.floor(Date.now()/1000)-tf*60*limit;
-    const d=await fetchKraken(`charts/${sym}/${tf}?from=${from}`);
+    const r=await fetchWithTimeout(`/api/kraken?path=charts/${sym}/${tf}?from=${from}`);
+    const d=await r.json();
     return(d.candles||[]).map(c=>({t:c[0],o:+c[1],h:+c[2],l:+c[3],c:+c[4],v:+c[5]}));
-  }catch(e){return[];}
+  }catch(e){addLog('Candles error: '+e.message,'E');return[];}
+}
+
+async function fetchWithTimeout(url, ms=8000){
+  const ctrl=new AbortController();
+  const id=setTimeout(()=>ctrl.abort(),ms);
+  try{
+    const r=await fetch(url,{signal:ctrl.signal});
+    clearTimeout(id);
+    return r;
+  }catch(e){clearTimeout(id);throw e;}
 }
 
 async function getPrice(sym){
   try{
-    const d=await fetchKraken(`tickers/${sym}`);
+    const r=await fetchWithTimeout(`/api/kraken?path=tickers/${sym}`);
+    const d=await r.json();
     return parseFloat(d.ticker?.last||d.ticker?.markPrice||0);
-  }catch(e){return 0;}
+  }catch(e){addLog('Feed error: '+e.message,'E');return 0;}
 }
 
 // ═══════════════════════════════════════════
@@ -693,6 +700,8 @@ let botTimer=null, tick=0, prevPx=0;
 
 async function botTick(){
   tick++;
+  addLog('⏱ Obteniendo precio de Kraken...','I');
+  render();
   const price=await getPrice(S.sym);
   if(!price){S.feedOk=false;render();return;}
 
@@ -737,6 +746,7 @@ function startBot(){
   document.getElementById('botDot').className='bdot live';
   document.getElementById('btnStart').disabled=true;
   addLog('🚀 Bot iniciado — conectando con Kraken...','I');
+  render();
   botTimer=setInterval(botTick,15000);
   botTick();
 }
@@ -992,3 +1002,4 @@ window.addEventListener('load',()=>{
 </script>
 </body>
 </html>
+
