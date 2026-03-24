@@ -705,15 +705,17 @@ async function getAllPrices(){
 }
 
 async function getCandles(sym,tf,limit){
+  const res=tf+'m';
   const from=Math.floor(Date.now()/1000)-tf*60*limit;
-  const path=encodeURIComponent('charts/'+sym+'/'+tf+'?from='+from);
+  const path=encodeURIComponent('trade/'+sym+'/'+res+'?from='+from);
   try{
-    const r=await fetchWT('/api/kraken?type=v3&path='+path,{},12000);
+    const r=await fetchWT('/api/kraken?type=charts&path='+path,{},12000);
     const d=await r.json();
     if(!d.candles||!d.candles.length){
-      addLog('Sin velas '+sym+' tf:'+tf+' resp:'+JSON.stringify(d).slice(0,80),'W');
+      addLog('Sin velas '+sym+' '+res+': '+JSON.stringify(d).slice(0,100),'W');
       return [];
     }
+    addLog('Velas OK '+sym+' '+res+': '+d.candles.length,'I');
     return d.candles.map(c=>{
       if(Array.isArray(c)) return {t:+c[0],o:parseFloat(c[1]),h:parseFloat(c[2]),l:parseFloat(c[3]),c:parseFloat(c[4]),v:parseFloat(c[5]||0)};
       return {t:+c.time,o:parseFloat(c.open),h:parseFloat(c.high),l:parseFloat(c.low),c:parseFloat(c.close),v:parseFloat(c.volume||0)};
