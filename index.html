@@ -667,12 +667,15 @@ async function callClaude(prompt){
 // KRAKEN DATA FEED
 // ═══════════════════════════════════════════
 async function getCandles(sym,tf,limit){
+  const res=tf+'m';
+  const from=Math.floor(Date.now()/1000)-tf*60*limit;
+  const path=encodeURIComponent('trade/'+sym+'/'+res+'?from='+from);
   try{
-    const from=Math.floor(Date.now()/1000)-tf*60*limit;
-    const r=await fetchWithTimeout(`/api/kraken?path=charts/${sym}/${tf}?from=${from}`);
+    const r=await fetchWithTimeout('/api/kraken?type=charts&path='+path);
     const d=await r.json();
-    return(d.candles||[]).map(c=>({t:c[0],o:+c[1],h:+c[2],l:+c[3],c:+c[4],v:+c[5]}));
-  }catch(e){addLog('Candles error: '+e.message,'E');return[];}
+    if(!d.candles||!d.candles.length){addLog('Sin velas '+sym+' '+res,'W');return[];}
+    return d.candles.map(c=>({t:+c.time,o:parseFloat(c.open),h:parseFloat(c.high),l:parseFloat(c.low),c:parseFloat(c.close),v:parseFloat(c.volume||0)}));
+  }catch(e){addLog('Error velas '+tf+'m: '+e.message,'E');return[];}
 }
 
 async function fetchWithTimeout(url, ms=8000){
@@ -687,10 +690,12 @@ async function fetchWithTimeout(url, ms=8000){
 
 async function getPrice(sym){
   try{
-    const r=await fetchWithTimeout(`/api/kraken?path=tickers/${sym}`);
+    const r=await fetchWithTimeout('/api/kraken?type=v3&path=tickers/'+sym);
     const d=await r.json();
-    return parseFloat(d.ticker?.last||d.ticker?.markPrice||0);
-  }catch(e){addLog('Feed error: '+e.message,'E');return 0;}
+    const px=parseFloat(d.ticker?.last||d.ticker?.markPrice||0);
+    if(!px) addLog('Sin precio para '+sym,'W');
+    return px;
+  }catch(e){addLog('Error precio: '+e.message,'E');return 0;}
 }
 
 // ═══════════════════════════════════════════
@@ -1002,4 +1007,3 @@ window.addEventListener('load',()=>{
 </script>
 </body>
 </html>
-
